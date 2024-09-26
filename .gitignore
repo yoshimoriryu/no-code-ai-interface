@@ -1,0 +1,9 @@
+.vscode
+.mypy_cache
+docker-stack.yml
+venv/
+.env_prod
+.coverage
+.secrets
+.DS_Store
+login_error.html
