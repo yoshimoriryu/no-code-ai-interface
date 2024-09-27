@@ -7,3 +7,12 @@ venv/
 .secrets
 .DS_Store
 login_error.html
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+*.db
+*.sqlite3
+.venv/
+env/
+.env
