@@ -4,6 +4,7 @@ from datetime import datetime
 import pytz
 from sqlalchemy import Column, DateTime, Float, Integer, String
 from app.db.base_class import Base
+from sqlalchemy.sql.sqltypes import JSON
 
 UTC7 = pytz.timezone(os.getenv("SQLALCHEMY_DATABASE_CONNECT_TIMEZONE","Asia/Jakarta"))
 
@@ -17,4 +18,6 @@ class DataSplitConfig(Base):
     filename = Column(String, index=True)
     train_size = Column(Float)
     random_seed = Column(Integer)
+    features = Column(JSON)
+    target = Column(String)
     created_at = Column(DateTime, default=get_current_time)

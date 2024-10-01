@@ -26,7 +26,9 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# Dictionary to store CSV data with filename as the key
+UPLOAD_FOLDER = "uploaded_files/"
+os.makedirs(UPLOAD_FOLDER, exist_ok=True)
+
 csv_storage = {}
 load_existing_csv_files(csv_storage)
 
@@ -36,7 +38,7 @@ async def upload_csv(file: UploadFile = File(...)):
         if not file.filename.endswith(".csv"):
             return JSONResponse(content={"error": "File is not a CSV"}, status_code=400)
 
-        file_location = f"uploaded_files/{file.filename}"
+        file_location = f"{UPLOAD_FOLDER}/{file.filename}"
         os.makedirs(os.path.dirname(file_location), exist_ok=True)
         with open(file_location, "wb") as f:
             f.write(await file.read())
@@ -47,6 +49,23 @@ async def upload_csv(file: UploadFile = File(...)):
 
     except Exception as e:
         return JSONResponse(content={"error": str(e)}, status_code=500)
+
+@app.delete("/delete_file/")
+async def delete_file(filename: str, db: Session = Depends(get_db)):
+    file_path = os.path.join(UPLOAD_FOLDER, filename)
+
+    if os.path.exists(file_path):
+        # delete adjacent config
+        resp = crud.data_split_config.delete_config_by_filename(db=db, filename=filename)
+
+        os.remove(file_path)  # Delete the file
+        removed_file = csv_storage.pop(filename, None)
+        if removed_file is not None:
+            return JSONResponse(content={"message": f"{filename} has been deleted"}, status_code=200)
+        else:
+            return HTTPException(status_code=404, detail="File not found")
+    else:
+        raise HTTPException(status_code=404, detail="File not found")
 
 @app.get("/show-csv/{filename}")
 async def show_csv(filename: str, page: int = 1, page_size: int = 10, pagination_enabled: bool = True):
@@ -113,11 +132,19 @@ async def show_csv(filename: str, page: int = 1, page_size: int = 10, pagination
             status_code=500,
         )
 
-
 @app.get("/list-csv/")
 async def list_csv():
     return {"uploaded_files": list(csv_storage.keys())}
 
+@app.get("/get-csv-columns")
+async def get_csv_columns(filename: str):
+    if filename in csv_storage:
+        # Assuming the CSV is stored in a DataFrame
+        df = csv_storage[filename]
+        columns = df.columns.tolist()  # Get the column names
+        return {"columns": columns}
+    else:
+        return {"error": "File not found"}, 404
 
 @app.get("/all_models/")
 async def get_models(db: Session = Depends(get_db)):
