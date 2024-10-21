@@ -1,18 +1,21 @@
 import json
+from app.logging_config import setup_logging
 import os
+import pickle
 
 import numpy as np
 import pandas as pd
-from fastapi import Depends, FastAPI, File, HTTPException, UploadFile
+from fastapi import Depends, FastAPI, File, HTTPException, Query, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import JSONResponse
+from fastapi.responses import JSONResponse, FileResponse
 from sqlalchemy.orm import Session
 
 from app import crud, schemas
 from app.database import SessionLocal, engine, get_db
-from app.models import Model
 from app.db.base_class import Base
-from app.utils import clean_dict, load_existing_csv_files
+from app.models import Model, Algorithm
+from app.schemas.model import ModelUpdate
+from app.utils.utils import clean_dict, load_existing_csv_files, extract_metadata_from_model
 
 # Base.metadata.create_all(bind=engine)
 
@@ -25,6 +28,14 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+logger = setup_logging()
+
+@app.middleware("http")
+async def log_requests(request, call_next):
+    response = await call_next(request)
+    logger.info(f"Request: {request.method} {request.url} ======= {response.status_code}")
+    return response
 
 UPLOAD_FOLDER = "uploaded_files/"
 os.makedirs(UPLOAD_FOLDER, exist_ok=True)
@@ -50,7 +61,7 @@ async def upload_csv(file: UploadFile = File(...)):
     except Exception as e:
         return JSONResponse(content={"error": str(e)}, status_code=500)
 
-@app.delete("/delete_file/")
+@app.delete("/delete-file/")
 async def delete_file(filename: str, db: Session = Depends(get_db)):
     file_path = os.path.join(UPLOAD_FOLDER, filename)
 
@@ -146,18 +157,48 @@ async def get_csv_columns(filename: str):
     else:
         return {"error": "File not found"}, 404
 
-@app.get("/all_models/")
+@app.get("/all-models/")
 async def get_models(db: Session = Depends(get_db)):
     models = db.query(Model).all()
-    return [
+
+    retval = [
         {
-            "id": model.id,
-            "name": model.name,
-            "algorithm": model.algorithm,
-            "hyperparameters": model.hyperparameters or {},
-        }
-        for model in models
+        "id": model.id,
+        "name": model.name,
+        "hyperparameters": model.hyperparameters or {},
+        "accuracy": model.accuracy,
+        "f1_score": model.f1_score,
+        "model_file": model.model_file,
+        "status": model.status,
+        "algorithm": model.algorithm,
+        "config": model.config,
+    }
+    for model in models
     ]
+
+    for new_model, model in zip(retval, models):
+        if model.config:
+            new_model["config"] = {
+                "filename": model.config.filename,
+                "train_size": model.config.train_size,
+                "random_seed": model.config.random_seed,
+                "features": model.config.features,
+                "target": model.config.target,
+                "created_at": model.config.created_at
+            }
+        else:
+            new_model["config"] = {
+                "filename": None
+            }
+
+        if model.algorithm:
+            new_model["algorithm"] = {
+                "name": model.algorithm.name,
+                "description": model.algorithm.description,
+                "default_hyperparameters": model.algorithm.default_hyperparameters
+            }
+
+    return retval
 
 @app.get("/check-file/{filename}")
 async def check_file(filename: str):
@@ -166,24 +207,63 @@ async def check_file(filename: str):
     return {"exists": exists}
 
 
-@app.post("/models/")
+@app.post("/create-model/")
 def create_model(model: schemas.ModelCreate,  db: Session = Depends(get_db)):
+    logger.info('model config_id')
+    logger.info(model.config_id)
     return crud.model.create_model(db=db, model=model)
 
+@app.put("/update-model/{model_id}", response_model=schemas.Model)
+def update_model(
+    model_id: int,
+    model_update: schemas.ModelUpdate,
+    db: Session = Depends(get_db)
+):
+    logger.info(f"Updating model with id: {model_id}")
+    logger.info(f"Update data: {model_update}")
+
+    existing_model = crud.model.get_model(db=db, model_id=model_id)
+    if existing_model is None:
+        raise HTTPException(status_code=404, detail="Model not found")
+
+    updated_model = crud.model.update_model(
+        db=db,
+        model_id=model_id,
+        model_in=model_update
+    )
+
+    if updated_model is None:
+        raise HTTPException(status_code=500, detail="Failed to update model")
+
+    if model_update.model_file and model_update.model_file != existing_model.model_file:
+        try:
+            crud.train_model.delete_model_file(existing_model.model_file)
+            # Assuming you have a function to save the new model file
+            crud.train_model.save_model_file(model_update.model_file)
+        except Exception as e:
+            logger.error(f"Error handling model file: {e}")
+            raise HTTPException(status_code=500, detail=str(e))
+
+    return updated_model
+
+@app.delete("/delete-model/{model_id}", response_model=schemas.Model)
+def delete_model(model_id: int, db: Session = Depends(get_db)):
+    logger.info(db)
+    logger.info(model_id)
+    deleted_model = crud.model.delete_model(db=db, model_id=model_id)
+    if deleted_model is None:
+        raise HTTPException(status_code=404, detail="Model not found")
+    # try:
+    #     crud.train_model.delete_model_file(deleted_model.model_file)
+    # except Exception as e:
+    #     logger.info(e)
+    #     raise HTTPException(status_code=404, detail=str(e))
+    crud.train_model.delete_model_file(deleted_model.model_file)
+    return deleted_model
 
 @app.get("/models/{model_id}/")
 def read_model(model_id: int,  db: Session = Depends(get_db)):
     return crud.model.get_model(db=db, model_id=model_id)
-
-
-# @app.post("/train/")
-# def train_model(model_id: int, data: schemas.TrainData):
-#     return crud.train_model(db: Session = Depends(get_db), model_id=model_id, data=data)
-
-
-# @app.post("/infer/")
-# def infer(model_id: int, input_data: schemas.InferenceData):
-#     return crud.infer_model(db: Session = Depends(get_db), model_id=model_id, input_data=input_data)
 
 @app.post("/data-split-configs/", response_model=schemas.DataSplitConfig)
 def create_data_split(config: schemas.DataSplitConfigCreate, db: Session = Depends(get_db)):
@@ -197,5 +277,119 @@ def get_data_split(config_id: int,  db: Session = Depends(get_db)):
     return db_config
 
 @app.get("/data-split-configs/", response_model=list[schemas.DataSplitConfig])
-def list_data_splits(skip: int = 0, limit: int = 10,  db: Session = Depends(get_db)):
+def list_data_splits(skip: int = 0, limit: int = 10, db: Session = Depends(get_db)):
     return crud.data_split_config.get_all_data_split_configs(db=db, skip=skip, limit=limit)
+
+@app.post("/train-model/")
+def train_model_api(
+        model_id: int = Query(..., description="ID of the model to train"),
+        config_id: int = Query(..., description="ID of the training configuration"),
+        db: Session = Depends(get_db)
+    ):
+    try:
+        result = crud.train_model.start_training(db, model_id, config_id)
+
+        model_update = ModelUpdate(
+            config_id=config_id,
+            accuracy=result['training_result']['accuracy'],
+            f1_score=result['training_result']['f1_score'],
+            model_file=result['training_result']['model_file'],
+            status=result['training_result']['status'],
+        )
+
+        return crud.model.update_model(db=db, model_id=model_id, model_update=model_update)
+    except Exception as e:
+        logger.info(e)
+        raise HTTPException(status_code=400, detail=str(e))
+
+# @app.post("/infer/")
+# def infer(model_id: int, input_data: schemas.InferenceData):
+#     return crud.infer_model(db: Session = Depends(get_db), model_id=model_id, input_data=input_data)
+
+@app.get("/all-algorithms/")
+async def get_algorithms(db: Session = Depends(get_db)):
+    algorithms = db.query(Algorithm).all()
+
+    algorithm_data = [
+    {
+        "id": algorithm.id,
+        "name": algorithm.name,
+        "algorithm": algorithm.name,
+        "description": algorithm.description,
+        "hyperparameters": algorithm.default_hyperparameters or {}
+    }
+    for algorithm in algorithms
+    ]
+
+    # Print only the first element
+    logger.info(algorithm_data[0] if algorithm_data else "No algorithms found")
+    return [
+        {
+            "id": algorithm.id,
+            "name": algorithm.name,
+            "algorithm": algorithm.name,
+            "description": algorithm.description,
+            "hyperparameters": algorithm.default_hyperparameters or {}
+        }
+        for algorithm in algorithms
+    ]
+
+@app.get("/download-model/{model_id}")
+async def download_model(model_id: int, db: Session = Depends(get_db)):
+    model = db.query(Model).filter(Model.id == model_id).first()
+    
+    if model is None:
+        raise HTTPException(status_code=404, detail="Model not found")
+
+    model_file_path = (f"trained_models/{model.model_file}")
+    
+    return FileResponse(model_file_path, media_type='application/octet-stream', filename=model.model_file)
+
+@app.post("/upload-model/")
+async def upload_model(
+    model_file: UploadFile = File(...),
+):
+    try:
+        # Save the uploaded file temporarily
+        model_data = await model_file.read()
+
+        # Load the model using pickle (assuming it's a pickle file)
+        model = pickle.loads(model_data)
+
+        # Extract algorithm and hyperparameters based on the model type
+        if hasattr(model, 'get_params'):
+            algorithm = type(model).__name__
+            hyperparameters = model.get_params()
+        else:
+            return JSONResponse({"error": "Unable to extract model metadata"}, status_code=400)
+
+        # Return the extracted metadata
+        return {
+            "algorithm": algorithm,
+            "hyperparameters": hyperparameters
+        }
+    
+    except Exception as e:
+        return JSONResponse({"error": str(e)}, status_code=500)
+
+@app.post("/extract-model-details/")
+async def extract_model_details(model_file: UploadFile = File(...)):
+    try:
+        # Read the contents of the uploaded file
+        contents = await model_file.read()
+
+        # Load the model from the pickle file (in memory)
+        model = pickle.loads(contents)
+
+        # Extract algorithm name
+        algorithm = model.__class__.__name__ if hasattr(model, '__class__') else "Unknown Algorithm"
+
+        # Extract hyperparameters (for scikit-learn models)
+        hyperparameters = model.get_params() if hasattr(model, 'get_params') else {}
+
+        return {
+            "algorithm": algorithm,
+            "hyperparameters": hyperparameters
+        }
+    except Exception as e:
+        return {"error": str(e)}

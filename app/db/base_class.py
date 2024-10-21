@@ -1,11 +1,12 @@
-import re
 import os
+import re
 from datetime import datetime
 from typing import Any
 
 from sqlalchemy import Column, DateTime, event
 from sqlalchemy.ext.declarative import as_declarative, declared_attr
 from sqlalchemy.sql import func
+
 
 class TimeStampMixin:
     """Timestamping mixin"""

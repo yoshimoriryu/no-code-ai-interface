@@ -17,7 +17,8 @@ services:
     env_file:
       - .env
     volumes:
-      - .:/app  # Mount the current directory to /app in the container
+      - .:/app
     ports:
       - "8000:8000"
-    command: uvicorn app.main:app --host 0.0.0.0 --reload
+    command: ["./wait-for-it.sh", "db:5432", "--", "uvicorn", "app.main:app", "--host", "0.0.0.0", "--reload"]
+    # entrypoint: tail -f /dev/null # dev only

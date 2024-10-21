@@ -1,10 +1,11 @@
 import logging
 from typing import Any, Dict, Generic, List, Optional, Type, TypeVar, Union
 
-from app.db.base_class import Base
 from fastapi.encoders import jsonable_encoder
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
+
+from app.db.base_class import Base
 
 logger = logging.getLogger(__name__)
 

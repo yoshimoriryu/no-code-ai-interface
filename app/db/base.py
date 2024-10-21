@@ -3,3 +3,4 @@
 from app.db.base_class import Base
 from app.models.data_split_config import DataSplitConfig
 from app.models.model import Model
+from app.models.algorithm import Algorithm

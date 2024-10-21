@@ -1,5 +1,7 @@
-from .data_split_config import DataSplitConfig, DataSplitConfigCreate, DataSplitConfigUpdate
+from .data_split_config import (DataSplitConfig, DataSplitConfigCreate,
+                                DataSplitConfigUpdate)
 from .model import Model, ModelCreate, ModelUpdate
+from .algorithm import Algorithm, AlgorithmCreate, AlgorithmUpdate
 
 __all__ = [
     'DataSplitConfig', 
@@ -7,5 +9,8 @@ __all__ = [
     'DataSplitConfigUpdate',
     'Model', 
     'ModelCreate', 
-    'ModelUpdate'
+    'ModelUpdate',
+    'Algorithm', 
+    'AlgorithmCreate',
+    'AlgorithmUpdate'
 ]

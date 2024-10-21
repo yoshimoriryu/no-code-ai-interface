@@ -1,9 +1,10 @@
-from sqlalchemy.orm import Session
 from sqlalchemy.exc import NoResultFound
+from sqlalchemy.orm import Session
 
 from app.crud.base import CRUDBase
 from app.models import DataSplitConfig
 from app.schemas import DataSplitConfigCreate, DataSplitConfigUpdate
+
 
 class CRUDDataSplitConfig(
     CRUDBase[DataSplitConfig, DataSplitConfigCreate, DataSplitConfigUpdate]
@@ -14,7 +15,9 @@ class CRUDDataSplitConfig(
             train_size=config.train_size,
             random_seed=config.random_seed,
             features=config.features,
-            target=config.target
+            target=config.target,
+            missing_data_strategy=config.missing_data_strategy,
+            constant_value=config.constant_value
         )
         db.add(db_config)
         db.commit()
