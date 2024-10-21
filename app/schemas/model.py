@@ -17,8 +17,8 @@ class ModelBase(BaseModel):
     config_id: Optional[int]
     algorithm_id: Optional[int]
 
-    config: Optional[DataSplitConfig] = None
-    algorithm: Optional[Algorithm] = None
+    # config: Optional[DataSplitConfig] = None
+    # algorithm: Optional[Algorithm] = None
 
     class Config:
         orm_mode = True

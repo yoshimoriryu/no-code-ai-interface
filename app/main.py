@@ -213,7 +213,7 @@ def create_model(model: schemas.ModelCreate,  db: Session = Depends(get_db)):
     logger.info(model.config_id)
     return crud.model.create_model(db=db, model=model)
 
-@app.put("/update-model/{model_id}", response_model=schemas.Model)
+@app.put("/update-model/{model_id}", response_model=schemas.ModelUpdate)
 def update_model(
     model_id: int,
     model_update: schemas.ModelUpdate,
@@ -229,7 +229,7 @@ def update_model(
     updated_model = crud.model.update_model(
         db=db,
         model_id=model_id,
-        model_in=model_update
+        model_update=model_update
     )
 
     if updated_model is None:
