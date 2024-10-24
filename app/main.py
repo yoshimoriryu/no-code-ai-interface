@@ -21,9 +21,11 @@ from app.utils.utils import clean_dict, load_existing_csv_files, extract_metadat
 
 app = FastAPI()
 
+origins = ["http://localhost:8080", "https://localhost:8080"]
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:8080"],
+    allow_origins=origins,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -31,7 +33,7 @@ app.add_middleware(
 
 logger = setup_logging()
 
-@app.middleware("http")
+@app.middleware("https")
 async def log_requests(request, call_next):
     response = await call_next(request)
     logger.info(f"Request: {request.method} {request.url} ======= {response.status_code}")
@@ -44,12 +46,15 @@ csv_storage = {}
 load_existing_csv_files(csv_storage)
 
 @app.post("/upload-csv/")
-async def upload_csv(file: UploadFile = File(...)):
+async def upload_csv(file: UploadFile = File(...), upload_folder: str = ''):
     try:
         if not file.filename.endswith(".csv"):
             return JSONResponse(content={"error": "File is not a CSV"}, status_code=400)
 
-        file_location = f"{UPLOAD_FOLDER}/{file.filename}"
+        if upload_folder:
+            file_location = f"{upload_folder}/{file.filename}"
+        else:
+            file_location = f"{UPLOAD_FOLDER}/{file.filename}"
         os.makedirs(os.path.dirname(file_location), exist_ok=True)
         with open(file_location, "wb") as f:
             f.write(await file.read())
@@ -60,6 +65,31 @@ async def upload_csv(file: UploadFile = File(...)):
 
     except Exception as e:
         return JSONResponse(content={"error": str(e)}, status_code=500)
+
+@app.get("/csv-metadata/")
+async def get_csv_metadata(filename: str):
+    file_location = f"{UPLOAD_FOLDER}{filename}"
+    logger.info(file_location)
+    # Read the uploaded CSV file into a DataFrame
+    df = pd.read_csv(file_location)  # Convert to DataFrame
+    
+    # Extract metadata
+    total_rows = int(len(df))
+    total_missing_values = int(df.isnull().sum().sum())
+    total_duplicates = int(df.duplicated().sum())
+
+    feature_data_types = df.dtypes.reset_index()
+    feature_data_types.columns = ['Feature', 'Data Type']
+    feature_data_types['Data Type'] = feature_data_types['Data Type'].apply(lambda x: str(x)) 
+    logger.info(feature_data_types)
+    feature_data_types_dict = feature_data_types.to_dict(orient="records")
+    
+    return {
+        'total_rows': total_rows,
+        'total_missing_values': total_missing_values,
+        'total_duplicates': total_duplicates,
+        'feature_data_types': feature_data_types_dict
+    }
 
 @app.delete("/delete-file/")
 async def delete_file(filename: str, db: Session = Depends(get_db)):
@@ -172,6 +202,8 @@ async def get_models(db: Session = Depends(get_db)):
         "status": model.status,
         "algorithm": model.algorithm,
         "config": model.config,
+        "project_name": model.project_name,
+        "created_at": model.created_at
     }
     for model in models
     ]
@@ -280,6 +312,15 @@ def get_data_split(config_id: int,  db: Session = Depends(get_db)):
 def list_data_splits(skip: int = 0, limit: int = 10, db: Session = Depends(get_db)):
     return crud.data_split_config.get_all_data_split_configs(db=db, skip=skip, limit=limit)
 
+@app.delete("/delete-config/{config_id}", response_model=schemas.DataSplitConfig)
+def delete_config(config_id: int, db: Session = Depends(get_db)):
+    logger.info(db)
+    logger.info(config_id)
+    deleted_config = crud.data_split_config.delete_config_by_id(db=db, config_id=config_id)
+    if deleted_config is None:
+        raise HTTPException(status_code=404, detail="Config not found")
+    return deleted_config
+
 @app.post("/train-model/")
 def train_model_api(
         model_id: int = Query(..., description="ID of the model to train"),
@@ -287,8 +328,10 @@ def train_model_api(
         db: Session = Depends(get_db)
     ):
     try:
+        logger.info('model train 0')
         result = crud.train_model.start_training(db, model_id, config_id)
 
+        logger.info('model train 1')
         model_update = ModelUpdate(
             config_id=config_id,
             accuracy=result['training_result']['accuracy'],
@@ -297,6 +340,7 @@ def train_model_api(
             status=result['training_result']['status'],
         )
 
+        logger.info('model train 2')
         return crud.model.update_model(db=db, model_id=model_id, model_update=model_update)
     except Exception as e:
         logger.info(e)
@@ -345,6 +389,7 @@ async def download_model(model_id: int, db: Session = Depends(get_db)):
     
     return FileResponse(model_file_path, media_type='application/octet-stream', filename=model.model_file)
 
+# TODO save uploaded model and store the model file
 @app.post("/upload-model/")
 async def upload_model(
     model_file: UploadFile = File(...),

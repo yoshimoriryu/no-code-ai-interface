@@ -10,7 +10,7 @@ from sklearn.ensemble import (AdaBoostClassifier, ExtraTreesClassifier,
                               GradientBoostingClassifier, IsolationForest,
                               RandomForestClassifier)
 from sklearn.linear_model import ElasticNet, Lasso, LogisticRegression, Ridge
-from sklearn.metrics import accuracy_score, f1_score
+from sklearn.metrics import accuracy_score, f1_score, precision_score, recall_score, confusion_matrix
 from sklearn.model_selection import train_test_split
 from sklearn.naive_bayes import GaussianNB
 from sklearn.neighbors import KNeighborsClassifier
@@ -99,6 +99,9 @@ def perform_training(model, config):
     # Calculate performance metrics (e.g., accuracy and F1 score)
     accuracy = accuracy_score(y_test, y_pred)
     f1 = f1_score(y_test, y_pred, average='weighted')
+    precision = precision_score(y_test, y_pred, average='weighted')
+    recall = recall_score(y_test, y_pred, average='weighted')
+    cm = confusion_matrix(y_test, y_pred)
 
     # Optionally save the trained model to disk
     model_path = f"trained_models/{model.name}.pkl"
@@ -113,6 +116,9 @@ def perform_training(model, config):
         "algorithm": model.algorithm,
         "accuracy": accuracy,
         "f1_score": f1,
+        "precision": precision,
+        "recall": recall,
+        "confusion_matrix": cm,
         "model_file": f"{model.name}.pkl",
         "status": "Training completed successfully"
     }

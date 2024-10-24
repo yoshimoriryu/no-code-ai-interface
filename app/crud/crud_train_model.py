@@ -20,6 +20,7 @@ class CRUDTrainModel:
         if not config:
             raise ValueError(f"Data Config with ID {config_id} not found.")
 
+        logger.info('start_training: perform training here')
         training_result = perform_training(model, config)
 
         return {

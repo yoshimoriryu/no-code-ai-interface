@@ -46,4 +46,29 @@ class CRUDDataSplitConfig(
             db.rollback()  # Rollback in case of error
             return {"error": str(e)}
 
+    def delete_config_by_id(self, db: Session, config_id: int):
+        try:
+            # Query the configuration with the specified id
+            config = db.query(DataSplitConfig).filter(DataSplitConfig.id == config_id).first()
+            deleted_config = DataSplitConfig(
+                id=config.id,
+                filename=config.filename,
+                train_size=config.train_size,
+                features=config.features,
+                target=config.target,
+            )
+            
+            if not config:
+                return {"message": f"No configuration found with id {config_id}."}
+
+            # Delete the configuration
+            db.delete(config)
+            db.commit()  # Commit the transaction to save changes
+
+            return deleted_config
+
+        except Exception as e:
+            db.rollback()  # Rollback in case of error
+            return {"error": str(e)}
+
 data_split_config = CRUDDataSplitConfig(DataSplitConfig)

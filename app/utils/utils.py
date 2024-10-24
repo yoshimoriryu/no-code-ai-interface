@@ -22,6 +22,26 @@ def load_existing_csv_files(csv_storage):
                 file_path = os.path.join(uploaded_dir, filename)
                 csv_storage[filename] = pd.read_csv(file_path)
 
+def extract_csv_metadata(file_path):
+    # Step 1: Load the CSV file into a DataFrame
+    df = pd.read_csv(file_path)
+    
+    # Step 2: Total number of rows
+    total_rows = len(df)
+    
+    # Step 3: Total number of missing values
+    total_missing_values = df.isnull().sum().sum()  # Sum of all missing values across the entire dataframe
+    
+    # Step 4: Total number of duplicate rows
+    total_duplicates = df.duplicated().sum()  # Count of duplicate rows
+    
+    # Return the metadata
+    return {
+        'total_rows': total_rows,
+        'total_missing_values': total_missing_values,
+        'total_duplicates': total_duplicates
+    }
+
 def extract_metadata_from_model(pkl_file):
     # Load the model from the pickle file
     model = pickle.load(pkl_file)

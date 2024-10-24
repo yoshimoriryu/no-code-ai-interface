@@ -29,5 +29,7 @@ class Model(Base):
     config_id = Column(Integer, ForeignKey('data_split_configs.id', name='fk_model_config_id'))
     algorithm_id = Column(Integer, ForeignKey('algorithms.id', name='fk_model_algorithm_id'))
 
+    project_name = Column(String)
+
     config = relationship("DataSplitConfig", back_populates="models")
     algorithm = relationship("Algorithm", back_populates="models")

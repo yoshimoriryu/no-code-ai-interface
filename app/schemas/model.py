@@ -17,6 +17,8 @@ class ModelBase(BaseModel):
     config_id: Optional[int]
     algorithm_id: Optional[int]
 
+    project_name: Optional[str]
+
     # config: Optional[DataSplitConfig] = None
     # algorithm: Optional[Algorithm] = None
 
@@ -37,6 +39,7 @@ class ModelUpdate(ModelBase):
     status: Optional[str]
     config_id: Optional[int]
     algorithm_id: Optional[int]
+    project_name: Optional[str]
 
 class ModelInDB(ModelBase):
     id: int

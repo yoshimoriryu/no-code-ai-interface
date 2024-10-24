@@ -41,7 +41,7 @@ class CRUDModel(
                 id=model.id,
                 name=model.name,
                 algorithm_id=model.algorithm_id,
-                hyperparameters=json.loads(model.hyperparameters) or {},
+                hyperparameters=model.hyperparameters,
                 model_file=f"{model.name}.pkl",
                 created_at=model.created_at,
                 config_id=model.config_id,
