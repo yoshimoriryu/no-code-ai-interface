@@ -1,5 +1,6 @@
 import json
 from app.logging_config import setup_logging
+from typing import Annotated
 import os
 import pickle
 
@@ -21,7 +22,11 @@ from app.utils.utils import clean_dict, load_existing_csv_files, extract_metadat
 
 app = FastAPI()
 
-origins = ["http://localhost:8080", "https://localhost:8080"]
+origins = [
+    "http://localhost:8080",
+    "https://localhost:8080",
+    "https://3e60-180-247-101-67.ngrok-free.app",
+    ]
 
 app.add_middleware(
     CORSMiddleware,
@@ -38,6 +43,7 @@ async def log_requests(request, call_next):
     response = await call_next(request)
     logger.info(f"Request: {request.method} {request.url} ======= {response.status_code}")
     return response
+
 
 UPLOAD_FOLDER = "uploaded_files/"
 os.makedirs(UPLOAD_FOLDER, exist_ok=True)
@@ -395,20 +401,14 @@ async def upload_model(
     model_file: UploadFile = File(...),
 ):
     try:
-        # Save the uploaded file temporarily
         model_data = await model_file.read()
-
-        # Load the model using pickle (assuming it's a pickle file)
         model = pickle.loads(model_data)
-
-        # Extract algorithm and hyperparameters based on the model type
         if hasattr(model, 'get_params'):
             algorithm = type(model).__name__
             hyperparameters = model.get_params()
         else:
             return JSONResponse({"error": "Unable to extract model metadata"}, status_code=400)
 
-        # Return the extracted metadata
         return {
             "algorithm": algorithm,
             "hyperparameters": hyperparameters
@@ -420,16 +420,9 @@ async def upload_model(
 @app.post("/extract-model-details/")
 async def extract_model_details(model_file: UploadFile = File(...)):
     try:
-        # Read the contents of the uploaded file
         contents = await model_file.read()
-
-        # Load the model from the pickle file (in memory)
         model = pickle.loads(contents)
-
-        # Extract algorithm name
         algorithm = model.__class__.__name__ if hasattr(model, '__class__') else "Unknown Algorithm"
-
-        # Extract hyperparameters (for scikit-learn models)
         hyperparameters = model.get_params() if hasattr(model, 'get_params') else {}
 
         return {
