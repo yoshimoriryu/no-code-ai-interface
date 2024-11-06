@@ -20,8 +20,6 @@ from sklearn.tree import DecisionTreeClassifier
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-
-# A dictionary of algorithms to easily map model names to scikit-learn models
 MODEL_ALGORITHMS = {
     "Random Forest": RandomForestClassifier,
     "SVM": SVC,
@@ -52,14 +50,11 @@ def perform_training(model, config):
     Returns:
         A dictionary containing the training results.
     """
-    # Load dataset from the config (assuming it's a CSV file path)
     dataset = pd.read_csv(f"uploaded_files/{config.filename}")
 
-    # Split dataset into features and target
     X = dataset[config.features]
     y = dataset[config.target]
 
-    # Handle any missing data strategy
     if config.missing_data_strategy == "mean":
         X.fillna(X.mean(), inplace=True)
     elif config.missing_data_strategy == "median":
@@ -69,17 +64,14 @@ def perform_training(model, config):
     elif config.missing_data_strategy == "constant" and config.constant_value is not None:
         X.fillna(config.constant_value, inplace=True)
 
-    # Split the data into training and validation sets
     X_train, X_test, y_train, y_test = train_test_split(
         X, y, test_size=config.train_size, random_state=config.random_seed
     )
 
-    # Fetch the model algorithm class from the dictionary
     ModelClass = MODEL_ALGORITHMS.get(model.algorithm.name)
     if not ModelClass:
         raise ValueError(f"Unsupported model algorithm: {model.algorithm}")
 
-    # Instantiate the model with hyperparameters (if any are provided)
     hyperparams = json.loads(model.hyperparameters)
     model_instance = ModelClass(**hyperparams)
     logger.info('Initializing training')
@@ -90,25 +82,19 @@ def perform_training(model, config):
     logger.info('Model Hyperparams: ')
     logger.info(model_instance.get_params())
 
-    # Train the model
     model_instance.fit(X_train, y_train)
-
-    # Make predictions
     y_pred = model_instance.predict(X_test)
 
-    # Calculate performance metrics (e.g., accuracy and F1 score)
     accuracy = accuracy_score(y_test, y_pred)
     f1 = f1_score(y_test, y_pred, average='weighted')
     precision = precision_score(y_test, y_pred, average='weighted')
     recall = recall_score(y_test, y_pred, average='weighted')
     cm = confusion_matrix(y_test, y_pred)
 
-    # Optionally save the trained model to disk
     model_path = f"trained_models/{model.name}.pkl"
     with open(model_path, "wb") as f:
         pickle.dump(model_instance, f)
 
-    # Return results of the training process
     return {
         "model_id": model.id,
         "config_id": config.id,

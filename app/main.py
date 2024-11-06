@@ -22,11 +22,11 @@ from app.utils.utils import clean_dict, load_existing_csv_files, extract_metadat
 
 app = FastAPI()
 
-origins = [
+origins_default = [
     "http://localhost:8080",
     "https://localhost:8080",
-    "https://3e60-180-247-101-67.ngrok-free.app",
     ]
+origins = os.getenv('BACKEND_CORS_ORIGINS', origins_default).split(",")
 
 app.add_middleware(
     CORSMiddleware,
@@ -75,11 +75,10 @@ async def upload_csv(file: UploadFile = File(...), upload_folder: str = ''):
 @app.get("/csv-metadata/")
 async def get_csv_metadata(filename: str):
     file_location = f"{UPLOAD_FOLDER}{filename}"
+
     logger.info(file_location)
-    # Read the uploaded CSV file into a DataFrame
-    df = pd.read_csv(file_location)  # Convert to DataFrame
-    
-    # Extract metadata
+
+    df = pd.read_csv(file_location)
     total_rows = int(len(df))
     total_missing_values = int(df.isnull().sum().sum())
     total_duplicates = int(df.duplicated().sum())
@@ -102,10 +101,9 @@ async def delete_file(filename: str, db: Session = Depends(get_db)):
     file_path = os.path.join(UPLOAD_FOLDER, filename)
 
     if os.path.exists(file_path):
-        # delete adjacent config
         resp = crud.data_split_config.delete_config_by_filename(db=db, filename=filename)
 
-        os.remove(file_path)  # Delete the file
+        os.remove(file_path)
         removed_file = csv_storage.pop(filename, None)
         if removed_file is not None:
             return JSONResponse(content={"message": f"{filename} has been deleted"}, status_code=200)
@@ -125,38 +123,31 @@ async def show_csv(filename: str, page: int = 1, page_size: int = 10, pagination
                 status_code=404,
             )
 
-    # Get the DataFrame
     df = csv_storage[filename]
     df.replace([np.inf, -np.inf], np.nan, inplace=True)
-
-    # Pagination logic
     total_rows = df.shape[0]
 
-    # If pagination is disabled, reset page and page_size
     if not pagination_enabled:
         page = 1
-        page_size = total_rows  # Fetch all records
+        page_size = total_rows
 
     start = (page - 1) * page_size
     end = start + page_size
 
-    # Ensure we don't go out of bounds
     if start >= total_rows:
         return JSONResponse(
             content={"error": "Page out of range"},
             status_code=400,
         )
 
-    # Get the paginated or full data
     paginated_df = df.iloc[start:end] if pagination_enabled else df
     data_as_dict = paginated_df.to_dict(orient="records")
     cleaned_data = clean_dict(data_as_dict)
 
-    # Check for missing values and missing columns
     missing_columns = paginated_df.columns[paginated_df.isnull().any() | (paginated_df == "").any()].tolist()
     has_missing_values = len(missing_columns) > 0
 
-    num_instances = df.shape[0]  # Total instances
+    num_instances = df.shape[0]
     num_features = df.shape[1]
 
     response_data = {
@@ -186,9 +177,8 @@ async def list_csv():
 @app.get("/get-csv-columns")
 async def get_csv_columns(filename: str):
     if filename in csv_storage:
-        # Assuming the CSV is stored in a DataFrame
         df = csv_storage[filename]
-        columns = df.columns.tolist()  # Get the column names
+        columns = df.columns.tolist()
         return {"columns": columns}
     else:
         return {"error": "File not found"}, 404
@@ -240,7 +230,6 @@ async def get_models(db: Session = Depends(get_db)):
 
 @app.get("/check-file/{filename}")
 async def check_file(filename: str):
-    # Check if the file exists in csv_storage
     exists = filename in csv_storage or f"{filename}.csv" in csv_storage
     return {"exists": exists}
 
@@ -276,7 +265,6 @@ def update_model(
     if model_update.model_file and model_update.model_file != existing_model.model_file:
         try:
             crud.train_model.delete_model_file(existing_model.model_file)
-            # Assuming you have a function to save the new model file
             crud.train_model.save_model_file(model_update.model_file)
         except Exception as e:
             logger.error(f"Error handling model file: {e}")
@@ -351,10 +339,6 @@ def train_model_api(
     except Exception as e:
         logger.info(e)
         raise HTTPException(status_code=400, detail=str(e))
-
-# @app.post("/infer/")
-# def infer(model_id: int, input_data: schemas.InferenceData):
-#     return crud.infer_model(db: Session = Depends(get_db), model_id=model_id, input_data=input_data)
 
 @app.get("/all-algorithms/")
 async def get_algorithms(db: Session = Depends(get_db)):
@@ -431,3 +415,21 @@ async def extract_model_details(model_file: UploadFile = File(...)):
         }
     except Exception as e:
         return {"error": str(e)}
+
+@app.post("/inference-model/")
+async def inference_model_api(
+        model_id: int = Query(..., description="ID of the model to perform inference on"),
+        config_id: int = Query(...),
+        db: Session = Depends(get_db)
+    ):
+    try:
+        logger.info('Starting inference for model ID: %d and config ID: %d', model_id, config_id)
+        # TODO preprocess data file
+        # currently using config to upload tobe infered files
+        results = crud.infer_model(db=db, model_id=model_id, config_id=config_id)
+
+        return results
+    except Exception as e:
+        logger.error('Error during inference: %s', e)
+        raise HTTPException(status_code=400, detail=str(e))
+

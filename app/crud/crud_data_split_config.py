@@ -32,23 +32,21 @@ class CRUDDataSplitConfig(
   
     def delete_config_by_filename(self, db: Session, filename: str):
         try:
-            # Delete all configurations with the specified filename
             result = db.query(DataSplitConfig).filter(DataSplitConfig.filename == filename).delete(synchronize_session=False)
             
             if result == 0:
                 return {"message": "No configurations found with the specified filename."}
 
-            db.commit()  # Commit the transaction to save changes
+            db.commit()
 
             return {"message": f"{result} configurations for '{filename}' have been deleted."}
 
         except Exception as e:
-            db.rollback()  # Rollback in case of error
+            db.rollback()
             return {"error": str(e)}
 
     def delete_config_by_id(self, db: Session, config_id: int):
         try:
-            # Query the configuration with the specified id
             config = db.query(DataSplitConfig).filter(DataSplitConfig.id == config_id).first()
             deleted_config = DataSplitConfig(
                 id=config.id,
@@ -61,14 +59,13 @@ class CRUDDataSplitConfig(
             if not config:
                 return {"message": f"No configuration found with id {config_id}."}
 
-            # Delete the configuration
             db.delete(config)
-            db.commit()  # Commit the transaction to save changes
+            db.commit()
 
             return deleted_config
 
         except Exception as e:
-            db.rollback()  # Rollback in case of error
+            db.rollback()
             return {"error": str(e)}
 
 data_split_config = CRUDDataSplitConfig(DataSplitConfig)

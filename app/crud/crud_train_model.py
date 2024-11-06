@@ -6,7 +6,6 @@ import stat
 from app import crud
 from app.utils.train_utils import perform_training
 
-
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger("uvicorn.error")
 
@@ -37,7 +36,7 @@ class CRUDTrainModel:
 
     def delete_model_file(self, filename: str):
         model_path = os.path.abspath(f"trained_models/{filename}")
-        self.log_file_permissions(model_path)  # Log permissions before deleting
+        self.log_file_permissions(model_path)
         if os.path.exists(model_path):
             os.remove(model_path)
             logger.info(f'Successfully deleted: {model_path}')

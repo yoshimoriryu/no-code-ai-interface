@@ -2,8 +2,10 @@
 .mypy_cache
 docker-stack.yml
 venv/
-uploaded_files/
-trained_models/
+uploaded_files/*
+uploaded_files/.gitkeep
+trained_models/*
+!trained_models/.gitkeep
 .env_prod
 .coverage
 .secrets

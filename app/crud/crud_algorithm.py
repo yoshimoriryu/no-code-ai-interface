@@ -47,5 +47,4 @@ class CRUDAlgorithm(
             return db_algorithm
         return None
 
-# Instantiate the CRUD object for use in other parts of the app
 algorithm = CRUDAlgorithm(Algorithm)
