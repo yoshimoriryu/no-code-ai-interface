@@ -6,10 +6,11 @@ import pickle
 
 import numpy as np
 import pandas as pd
-from fastapi import Depends, FastAPI, File, HTTPException, Query, UploadFile
+from fastapi import Depends, FastAPI, File, HTTPException, Query, UploadFile, BackgroundTasks
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse, FileResponse
 from sqlalchemy.orm import Session
+from saq
 
 from app import crud, schemas
 from app.database import SessionLocal, engine, get_db
@@ -21,6 +22,8 @@ from app.utils.utils import clean_dict, load_existing_csv_files, extract_metadat
 # Base.metadata.create_all(bind=engine)
 
 app = FastAPI()
+
+saq.configure(broker=os.getenv('SAQ_BROKER_URL', "redis://localhost:6379/0"))
 
 origins_default = [
     "http://localhost:8080",
@@ -43,7 +46,6 @@ async def log_requests(request, call_next):
     response = await call_next(request)
     logger.info(f"Request: {request.method} {request.url} ======= {response.status_code}")
     return response
-
 
 UPLOAD_FOLDER = "uploaded_files/"
 os.makedirs(UPLOAD_FOLDER, exist_ok=True)

@@ -10,6 +10,22 @@ services:
     ports:
       - "5432:5432"
 
+  redis:
+    image: redis:alpine
+    ports:
+      - "6379:6379"
+
+  saq_worker:
+    build:
+      context: .
+    command: python -m saq.worker
+    env_file:
+      - .env
+    environment:
+      - SAQ_REDIS_URL=${SAQ_BROKER_URL}
+    depends_on:
+      - redis
+
   app:
     depends_on:
       - db
