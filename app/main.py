@@ -22,10 +22,7 @@ from app.utils.utils import clean_dict, load_existing_csv_files, extract_metadat
 
 app = FastAPI()
 
-origins_default = [
-    "http://localhost:8080",
-    "https://localhost:8080",
-    ]
+origins_default = "http://localhost:8080,https://localhost:8080"
 origins = os.getenv('BACKEND_CORS_ORIGINS', origins_default).split(",")
 
 app.add_middleware(
